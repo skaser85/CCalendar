@@ -1,12 +1,14 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "raylib.h"
 
 #define NOB_IMPLEMENTATION
 #include "../nob.h"
+
+#define STB_DS_IMPLEMENTATION
+#include "../third-party/stb_ds.h"
 
 #define GRID_ROW 7
 #define GRID_COL 6
@@ -32,6 +34,10 @@ typedef struct {
   struct tm timeinfo;
   DayState state;
   bool today;
+  bool vip;
+  Nob_String_View name;
+  Color bkgColor;
+  Color fgColor;
 } Day;
 
 typedef struct {
@@ -39,6 +45,24 @@ typedef struct {
   size_t capacity;
   size_t count;
 } Days;
+
+typedef struct {
+  Nob_String_View name;
+  struct tm timeinfo;
+  Color bkgColor;
+  Color fgColor;
+} VIPDate;
+
+typedef struct {
+  VIPDate *items;
+  size_t capacity;
+  size_t count;
+} Dates;
+
+typedef struct {
+  char *key;
+  Color value;
+} ColorMapItem;
 
 bool IsToday(struct tm *date) {
   time_t t = time(NULL);
@@ -59,7 +83,23 @@ int GetDaysInMonth(size_t year, size_t month) {
   }
 }
 
-void CreateDays(Days *days, size_t year, size_t month) {
+bool IsVIPDay(Dates *vips, Day *day) {
+  for (size_t i = 0; i < vips->count; ++i) {
+    struct tm vtm = vips->items[i].timeinfo;
+    if (day->timeinfo.tm_year == vtm.tm_year &&
+        day->timeinfo.tm_mon == vtm.tm_mon &&
+        day->timeinfo.tm_mday == vtm.tm_mday) {
+      day->vip = true;
+      day->name = vips->items[i].name;
+      day->bkgColor = vips->items[i].bkgColor;
+      day->fgColor = vips->items[i].fgColor;
+      return true;
+    }
+  }
+  return false;
+}
+
+void CreateDays(Days *days, size_t year, size_t month, Dates *vips) {
   size_t daysCount = (size_t)GetDaysInMonth(year, month);
   for (size_t i = 1; i <= daysCount; ++i) {
     struct tm timeinfo = {0};
@@ -68,7 +108,8 @@ void CreateDays(Days *days, size_t year, size_t month) {
     timeinfo.tm_mday = i;
     time_t t = mktime(&timeinfo);
     NOB_UNUSED(t);
-    Day d = { .timeinfo = timeinfo, .state = DS_NONE, .today = IsToday(&timeinfo) };
+    Day d = { .timeinfo = timeinfo, .state = DS_NONE, .today = IsToday(&timeinfo), .vip = false };
+    IsVIPDay(vips, &d); 
     nob_da_append(days, d); 
   }
 }
@@ -89,25 +130,112 @@ bool DrawButton(Rectangle boundary, const char *text) {
   return clicked;
 }
 
-int GetNextMonth(int direction, int month, size_t year, Days *days) {
+int GetNextMonth(int direction, int month, size_t year, Days *days, Dates *vips) {
   month += direction; 
   if (month > 11)
     month = 0;
   if (month < 0)
     month = 11;
   days->count = 0;
-  CreateDays(days, year, month);
+  CreateDays(days, year, month, vips);
   return month;
 }
 
+void FillColorMap(ColorMapItem **map) {
+  shput(*map, "LIGHTGRAY", LIGHTGRAY);  
+  shput(*map, "GRAY", GRAY);
+  shput(*map, "DARKGRAY", DARKGRAY);
+  shput(*map, "YELLOW", YELLOW); 
+  shput(*map, "GOLD", GOLD);
+  shput(*map, "ORANGE", ORANGE);
+  shput(*map, "PINK", PINK);
+  shput(*map, "RED", RED);
+  shput(*map, "MAROON", MAROON);
+  shput(*map, "GREEN", GREEN);
+  shput(*map, "LIME", LIME);
+  shput(*map, "DARKGREEN", DARKGREEN);
+  shput(*map, "SKYBLUE", SKYBLUE);
+  shput(*map, "BLUE", BLUE);
+  shput(*map, "DARKBLUE", DARKBLUE);
+  shput(*map, "PURPLE", PURPLE);
+  shput(*map, "VIOLET", VIOLET);
+  shput(*map, "DARKPURPLE", DARKPURPLE);
+  shput(*map, "BEIGE", BEIGE);
+  shput(*map, "BROWN", BROWN);
+  shput(*map, "DARKBROWN", DARKBROWN);
+  shput(*map, "WHITE", WHITE);
+  shput(*map, "BLACK", BLACK);
+  shput(*map, "BLANK", BLANK);
+  shput(*map, "MAGENTA", MAGENTA);
+  shput(*map, "RAYWHITE", RAYWHITE);
+}
+
+bool ParseYaml(Dates *dates) {
+  const char *path = "./dates.yaml";
+
+  Nob_String_Builder sb = {0};
+  if (!nob_read_entire_file(path, &sb)) return false;
+
+  Nob_String_View sv = nob_sb_to_sv(sb); 
+  Nob_String_View line = nob_sv_chop_by_delim(&sv, '\n');
+
+  ColorMapItem *colorMap = {0};
+  FillColorMap(&colorMap);
+
+  VIPDate d = {0};
+  while(line.count) {
+    if (line.data[0] != ' ') {
+      d.name.count = 0;
+      d.name = nob_sv_chop_by_delim(&line, ':');
+    } else {
+      line = nob_sv_trim(line);
+      Nob_String_View thing = nob_sv_chop_by_delim(&line, ':');
+      if (nob_sv_eq(thing, nob_sv_from_cstr("date"))) {
+        line = nob_sv_trim(line);
+        Nob_String_View year = nob_sv_chop_left(&line, 4);
+        Nob_String_View month = nob_sv_chop_left(&line, 2);
+        Nob_String_View day = nob_sv_chop_left(&line, 2);
+        int yeari = atoi(nob_temp_sv_to_cstr(year));
+        int monthi = atoi(nob_temp_sv_to_cstr(month));
+        int dayi = atoi(nob_temp_sv_to_cstr(day));
+      
+        struct tm date = {0};
+        date.tm_year = yeari - 1900;
+        date.tm_mon = monthi -1;
+        date.tm_mday = dayi;
+        time_t t = mktime(&date);
+        NOB_UNUSED(t);
+        d.timeinfo = date;
+
+      } else if (nob_sv_eq(thing, nob_sv_from_cstr("bkgColor"))) {
+        const char* color = nob_temp_sv_to_cstr(nob_sv_trim(line));
+        nob_log(NOB_INFO, "%s", color);
+        Color c = shget(colorMap, color);
+        nob_log(NOB_INFO, "%d", c.r);
+        d.bkgColor = c; 
+      } else if (nob_sv_eq(thing, nob_sv_from_cstr("fgColor"))) {
+        const char* color = nob_temp_sv_to_cstr(nob_sv_trim(line));
+        nob_log(NOB_INFO, "%s", color);
+        d.fgColor = shget(colorMap, color);
+        nob_da_append(dates, d);
+      }
+    } 
+    line = nob_sv_chop_by_delim(&sv, '\n');
+  }
+  return true;
+}
+
 int main(void) {
+  Dates vips = {0};
+  if (!ParseYaml(&vips)) return 1;
+
   InitWindow(1680, 1050, "calendar");
 
   int MONTH_IDX = 0;
   size_t YEAR = 2025;
   Day *selectedDay = NULL;
   Days days = {0};
-  CreateDays(&days, YEAR, MONTH_IDX);
+  CreateDays(&days, YEAR, MONTH_IDX, &vips);
 
   size_t start_x = GRID_PADDING;
   size_t end_x = GetScreenWidth()-GRID_PADDING;
@@ -124,10 +252,10 @@ int main(void) {
   
     Rectangle prev_btn_rect = { .x = GRID_PADDING, .y = GRID_PADDING, .width = NP_BUTTON_WIDTH, .height = NP_BUTTON_HEIGHT };
     const char* prevText = "PREV";
-    if (DrawButton(prev_btn_rect, prevText)) MONTH_IDX = GetNextMonth(-1, MONTH_IDX, YEAR, &days);
+    if (DrawButton(prev_btn_rect, prevText)) MONTH_IDX = GetNextMonth(-1, MONTH_IDX, YEAR, &days, &vips);
     Rectangle next_btn_rect = { .x = (prev_btn_rect.x + prev_btn_rect.width)+GRID_PADDING, .y = GRID_PADDING, .width = NP_BUTTON_WIDTH, .height = NP_BUTTON_HEIGHT };
     const char* nextText = "NEXT";
-    if (DrawButton(next_btn_rect, nextText)) MONTH_IDX = GetNextMonth(1, MONTH_IDX, YEAR, &days);
+    if (DrawButton(next_btn_rect, nextText)) MONTH_IDX = GetNextMonth(1, MONTH_IDX, YEAR, &days, &vips);
 
     char yearText[5];
     sprintf(yearText, "%ld", YEAR);
@@ -172,6 +300,8 @@ int main(void) {
           DrawRectangle(x, y, gridW, gridH, DARKGRAY);
         } else if (d->state == DS_SELECTED) {
           DrawRectangleRec(r, DARKPURPLE);
+        } else if (d->vip) {
+          DrawRectangleRec(r, d->bkgColor);
         }
 
 
@@ -187,7 +317,13 @@ int main(void) {
           c = LIME;
           fs = CAL_TEXT_FONT_SIZE*2;
         }
+        if (d->vip) {
+          c = d->fgColor;
+        }
         DrawText(text, x+2, y+2, fs, c);
+        if (d->vip) {
+          DrawText(nob_temp_sv_to_cstr(d->name), x+2, y+fs*2+4, fs*2, c);
+        }
         daysIdx++;
       } 
       
