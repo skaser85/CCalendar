@@ -14,8 +14,8 @@
 #define GRID_COL 6
 #define GRID_PADDING 10
 
-#define TITLE_FONT_SIZE 50
-#define CAL_TEXT_FONT_SIZE 12
+#define TITLE_FONT_SIZE 50 
+#define CAL_TEXT_FONT_SIZE 16 
 
 #define NP_BUTTON_WIDTH 100
 #define NP_BUTTON_HEIGHT 50
@@ -114,7 +114,7 @@ void CreateDays(Days *days, size_t year, size_t month, Dates *vips) {
   }
 }
 
-bool DrawButton(Rectangle boundary, const char *text) {
+bool DrawButton(Rectangle boundary, const char *text, Font font) {
   Color bkgColor = DARKGRAY;
   bool clicked = false;
 
@@ -124,8 +124,9 @@ bool DrawButton(Rectangle boundary, const char *text) {
   }
   
   DrawRectangleRec(boundary, bkgColor);
-  int textW = MeasureText(text, NP_BUTTON_FONT_SIZE);
-  DrawText(text, (boundary.x+NP_BUTTON_WIDTH/2) - textW/2, (boundary.y+NP_BUTTON_HEIGHT/2)-NP_BUTTON_FONT_SIZE/2, NP_BUTTON_FONT_SIZE, RAYWHITE);
+  Vector2 textDims = MeasureTextEx(font, text, NP_BUTTON_FONT_SIZE, 1);
+  Vector2 pos = { .x = (boundary.x+NP_BUTTON_WIDTH/2) - textDims.x/2, .y = (boundary.y+NP_BUTTON_HEIGHT/2)-NP_BUTTON_FONT_SIZE/2 };
+  DrawTextEx(font, text, pos, NP_BUTTON_FONT_SIZE, 1, RAYWHITE);
 
   return clicked;
 }
@@ -209,13 +210,11 @@ bool ParseYaml(Dates *dates) {
 
       } else if (nob_sv_eq(thing, nob_sv_from_cstr("bkgColor"))) {
         const char* color = nob_temp_sv_to_cstr(nob_sv_trim(line));
-        nob_log(NOB_INFO, "%s", color);
         Color c = shget(colorMap, color);
         nob_log(NOB_INFO, "%d", c.r);
         d.bkgColor = c; 
       } else if (nob_sv_eq(thing, nob_sv_from_cstr("fgColor"))) {
         const char* color = nob_temp_sv_to_cstr(nob_sv_trim(line));
-        nob_log(NOB_INFO, "%s", color);
         d.fgColor = shget(colorMap, color);
         nob_da_append(dates, d);
       }
@@ -230,6 +229,12 @@ int main(void) {
   if (!ParseYaml(&vips)) return 1;
 
   InitWindow(1680, 1050, "calendar");
+
+  Font arvo = LoadFont("./assets/Arvo/Arvo-Regular.ttf");
+  SetTextureFilter(arvo.texture, TEXTURE_FILTER_BILINEAR);
+
+  Font TITLE_FONT = arvo;
+  Font TEXT_FONT = arvo;
 
   int MONTH_IDX = 0;
   size_t YEAR = 2025;
@@ -252,10 +257,10 @@ int main(void) {
   
     Rectangle prev_btn_rect = { .x = GRID_PADDING, .y = GRID_PADDING, .width = NP_BUTTON_WIDTH, .height = NP_BUTTON_HEIGHT };
     const char* prevText = "PREV";
-    if (DrawButton(prev_btn_rect, prevText)) MONTH_IDX = GetNextMonth(-1, MONTH_IDX, YEAR, &days, &vips);
+    if (DrawButton(prev_btn_rect, prevText, TEXT_FONT)) MONTH_IDX = GetNextMonth(-1, MONTH_IDX, YEAR, &days, &vips);
     Rectangle next_btn_rect = { .x = (prev_btn_rect.x + prev_btn_rect.width)+GRID_PADDING, .y = GRID_PADDING, .width = NP_BUTTON_WIDTH, .height = NP_BUTTON_HEIGHT };
     const char* nextText = "NEXT";
-    if (DrawButton(next_btn_rect, nextText)) MONTH_IDX = GetNextMonth(1, MONTH_IDX, YEAR, &days, &vips);
+    if (DrawButton(next_btn_rect, nextText, TEXT_FONT)) MONTH_IDX = GetNextMonth(1, MONTH_IDX, YEAR, &days, &vips);
 
     char yearText[5];
     sprintf(yearText, "%ld", YEAR);
@@ -264,8 +269,9 @@ int main(void) {
     strcpy(title, MONTH_NAMES[MONTH_IDX]);
     strcat(title, " ");
     strcat(title, yearText);
-    int nameW = MeasureText(title, TITLE_FONT_SIZE);
-    DrawText(title, GetScreenWidth()/2-nameW/2, 0, TITLE_FONT_SIZE, RAYWHITE);  
+    Vector2 nameDims = MeasureTextEx(TITLE_FONT, title, TITLE_FONT_SIZE, 0);
+    Vector2 titlePos = { .x = GetScreenWidth()/2-nameDims.x/2, .y = 0 };
+    DrawTextEx(TITLE_FONT, title, titlePos, TITLE_FONT_SIZE, 0, RAYWHITE);  
 
     size_t row = 0;
     size_t daysIdx = 0;
@@ -320,9 +326,9 @@ int main(void) {
         if (d->vip) {
           c = d->fgColor;
         }
-        DrawText(text, x+2, y+2, fs, c);
+        DrawTextEx(TEXT_FONT, text, CLITERAL(Vector2){x+4, y+4}, fs, 0, c);
         if (d->vip) {
-          DrawText(nob_temp_sv_to_cstr(d->name), x+2, y+fs*2+4, fs*2, c);
+          DrawTextEx(TEXT_FONT, nob_temp_sv_to_cstr(d->name), CLITERAL(Vector2){x+4, y+fs*1.5+4}, fs*1.5, 0, c);
         }
         daysIdx++;
       } 
@@ -333,6 +339,8 @@ int main(void) {
 
     EndDrawing();
   }
+
+  UnloadFont(arvo);
 
   CloseWindow();
 
