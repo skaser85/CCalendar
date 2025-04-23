@@ -231,13 +231,20 @@ int main(void) {
   Dates vips = {0};
   if (!ParseYaml(&vips)) return 1;
 
+  SetConfigFlags(FLAG_MSAA_4X_HINT);
   InitWindow(1200, 720, "calendar");
 
-  Font arvo = LoadFont("./assets/Arvo/Arvo-Regular.ttf");
-  SetTextureFilter(arvo.texture, TEXTURE_FILTER_BILINEAR);
+  //#define TITLE_FONT_SIZE 50 
+  //#define CAL_TEXT_FONT_SIZE 16 
 
-  Font TITLE_FONT = arvo;
-  Font TEXT_FONT = arvo;
+  Font arvoText = LoadFontEx("./assets/Arvo/Arvo-Regular.ttf", CAL_TEXT_FONT_SIZE, NULL, 0);
+  Font arvoTitle = LoadFontEx("./assets/Arvo/Arvo-Regular.ttf", TITLE_FONT_SIZE, NULL, 0);
+  SetTextureFilter(arvoText.texture, TEXTURE_FILTER_TRILINEAR);
+  SetTextureFilter(arvoTitle.texture, TEXTURE_FILTER_TRILINEAR);
+
+
+  Font TITLE_FONT = arvoTitle;
+  Font TEXT_FONT = arvoText;
 
   int MONTH_IDX = 0;
   size_t YEAR = 2025;
@@ -324,7 +331,7 @@ int main(void) {
         int fs = CAL_TEXT_FONT_SIZE;
         if (d->today) {
           c = LIME;
-          fs = CAL_TEXT_FONT_SIZE*2;
+          fs = CAL_TEXT_FONT_SIZE*1.25;
         }
         if (d->vip) {
           c = d->fgColor;
@@ -343,7 +350,8 @@ int main(void) {
     EndDrawing();
   }
 
-  UnloadFont(arvo);
+  UnloadFont(arvoTitle);
+  UnloadFont(arvoTitle);
 
   CloseWindow();
 

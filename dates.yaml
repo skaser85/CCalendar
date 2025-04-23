@@ -6,3 +6,11 @@ Valentine's Day:
   date: 20250214
   bkgColor: RED
   fgColor: RAYWHITE
+Easter:
+  date: 20250420
+  bkgColor: PINK
+  fgColor: WHITE
+4th of July
+  date: 20250704
+  bkgColor: BLUE
+  fgColor: RED
