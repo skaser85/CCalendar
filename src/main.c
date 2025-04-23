@@ -131,15 +131,18 @@ bool DrawButton(Rectangle boundary, const char *text, Font font) {
   return clicked;
 }
 
-int GetNextMonth(int direction, int month, size_t year, Days *days, Dates *vips) {
-  month += direction; 
-  if (month > 11)
-    month = 0;
-  if (month < 0)
-    month = 11;
+void GetNextMonth(int direction, int *month, size_t *year, Days *days, Dates *vips) {
+  *month += direction; 
+  if (*month > 11) {
+    *month = 0;
+    *year += 1;
+  }
+  if (*month < 0) {
+    *month = 11;
+    *year -= 1;
+  }
   days->count = 0;
-  CreateDays(days, year, month, vips);
-  return month;
+  CreateDays(days, *year, *month, vips);
 }
 
 void FillColorMap(ColorMapItem **map) {
@@ -228,7 +231,7 @@ int main(void) {
   Dates vips = {0};
   if (!ParseYaml(&vips)) return 1;
 
-  InitWindow(1680, 1050, "calendar");
+  InitWindow(1200, 720, "calendar");
 
   Font arvo = LoadFont("./assets/Arvo/Arvo-Regular.ttf");
   SetTextureFilter(arvo.texture, TEXTURE_FILTER_BILINEAR);
@@ -257,10 +260,10 @@ int main(void) {
   
     Rectangle prev_btn_rect = { .x = GRID_PADDING, .y = GRID_PADDING, .width = NP_BUTTON_WIDTH, .height = NP_BUTTON_HEIGHT };
     const char* prevText = "PREV";
-    if (DrawButton(prev_btn_rect, prevText, TEXT_FONT)) MONTH_IDX = GetNextMonth(-1, MONTH_IDX, YEAR, &days, &vips);
+    if (DrawButton(prev_btn_rect, prevText, TEXT_FONT)) GetNextMonth(-1, &MONTH_IDX, &YEAR, &days, &vips);
     Rectangle next_btn_rect = { .x = (prev_btn_rect.x + prev_btn_rect.width)+GRID_PADDING, .y = GRID_PADDING, .width = NP_BUTTON_WIDTH, .height = NP_BUTTON_HEIGHT };
     const char* nextText = "NEXT";
-    if (DrawButton(next_btn_rect, nextText, TEXT_FONT)) MONTH_IDX = GetNextMonth(1, MONTH_IDX, YEAR, &days, &vips);
+    if (DrawButton(next_btn_rect, nextText, TEXT_FONT)) GetNextMonth(1, &MONTH_IDX, &YEAR, &days, &vips);
 
     char yearText[5];
     sprintf(yearText, "%ld", YEAR);
